@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>质检详情 - 录音质检系统</title>
+<link rel="stylesheet" href="/www/shared.css">
+<style>
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+  .issue-item {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    background: var(--surface);
+  }
+  .issue-item.bad {
+    background: #FFF5F5;
+    border-color: #FCA5A5;
+  }
+  .issue-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .issue-word {
+    background: var(--danger-bg);
+    color: var(--danger);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .issue-speaker {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .issue-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .issue-reason {
+    font-size: 12px;
+    color: #374151;
+    background: #FFF5F7;
+    border: 1px solid #FECDD3;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+  }
+  
+  /* 音频播放区域 - 自定义播放器 */
+  .audio-wrapper {
+    padding: 12px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .custom-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+  .play-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .2s;
+  }
+  .play-btn:hover { background: var(--primary-dark); }
+  .progress-wrap {
+    flex: 1;
+    position: relative;
+    height: 20px;
+    display: flex; align-items: center;
+  }
+  .progress-track {
+    width: 100%; height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-played {
+    height: 100%; width: 0%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width .1s linear;
+  }
+  .progress-handle {
+    position: absolute;
+    top: 50%; left: 0%;
+    transform: translate(-50%, -50%);
+    width: 12px; height: 12px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    pointer-events: none;
+    transition: left .1s linear;
+  }
+  .progress-input {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    margin: 0;
+  }
+  .time-display {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 80px;
+    text-align: center;
+  }
+  .speed-control {
+    position: relative;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .speed-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: all var(--t);
+    white-space: nowrap;
+  }
+  .speed-label:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+  .speed-arrow {
+    font-size: 10px;
+    transition: transform var(--t);
+  }
+  .speed-control:hover .speed-arrow {
+    transform: rotate(180deg);
+  }
+  .speed-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    padding: 4px 0;
+    z-index: 100;
+    min-width: 80px;
+  }
+  .speed-control:hover .speed-menu {
+    display: block;
+  }
+  .speed-menu-item {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border: none;
+    background: none;
+    cursor: pointer;
+    transition: all var(--t);
+  }
+  .speed-menu-item:hover {
+    background: var(--primary);
+    color: white;
+  }
+  .speed-menu-item.active {
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .speed-menu-item.active:hover {
+    color: white;
+  }
+  
+  /* 对话列表 */
+  .segment-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  /* 左右对话样式 */
+  .chat-item {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .chat-item:hover { transform: scale(1.01); }
+  .chat-item.left { align-self: flex-start; }
+  .chat-item.right { align-self: flex-end; }
+  .chat-item.left.expert { align-self: flex-start; }
+  .chat-item.right.expert { align-self: flex-end; }
+  .chat-item.active .chat-bubble {
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+  .chat-item.issue-active .chat-bubble {
+    background: #fce7f3 !important;
+    box-shadow: 0 0 0 2px #ec4899;
+  }
+  
+  .chat-bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    position: relative;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .chat-item.left .chat-bubble {
+    background: #F3F4F6;
+    color: #1f2937;
+    border-bottom-left-radius: 4px;
+  }
+  .chat-item.right .chat-bubble {
+    background: #EFF6FF;
+    color: #1f2937;
+    border-bottom-right-radius: 4px;
+  }
+  .chat-item.left.expert .chat-bubble {
+    background: #FEF3C7;
+    color: #1f2937;
+    border-bottom-left-radius: 4px;
+  }
+  .chat-item.right.expert .chat-bubble {
+    background: #FEF3C7;
+    color: #1f2937;
+    border-bottom-right-radius: 4px;
+  }
+  
+  .chat-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+  }
+  .chat-item.left .chat-meta { justify-content: flex-start; }
+  .chat-item.right .chat-meta { justify-content: flex-end; }
+  .chat-item.has-hit .chat-bubble {
+    box-shadow: 0 0 0 2px var(--danger);
+  }
+  .chat-item.left.expert .chat-meta { justify-content: flex-start; }
+  .chat-item.right.expert .chat-meta { justify-content: flex-end; }
+  
+  .chat-speaker {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .chat-speaker.expert {
+    color: #B45309;
+    font-weight: 600;
+  }
+  .chat-time {
+    color: var(--text-muted);
+  }
+  .no-issues {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+  }
+  .no-issues .icon { font-size: 32px; margin-bottom: 8px; }
+  
+  /* 主容器 */
+  .detail-container {
+    display: flex;
+    height: calc(100vh - 56px);
+    background: var(--bg);
+  }
+  
+  /* 左侧区域 */
+  .detail-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  
+  /* 右侧区域 */
+  .detail-right {
+    width: 400px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    padding-left: 0;
+    overflow: hidden;
+  }
+  
+  /* 卡片样式 */
+  .detail-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .detail-card-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .detail-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .detail-card-body {
+    padding: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* 基本信息网格（美化版） */
+  .info-grid {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg);
+  }
+  .info-grid-top {
+    padding-bottom: 8px;
+  }
+  .info-grid-top .info-item {
+    flex: 1;
+  }
+  .info-grid-bottom {
+    padding-top: 8px;
+  }
+  
+  /* 质检结论卡片 */
+  #infoResult {
+    flex: 1;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #bbf7d0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoResult::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+  }
+  #infoResult .info-label {
+    font-size: 11px;
+    color: #15803d;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoResult .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #166534;
+    line-height: 1;
+  }
+  
+  /* 敏感词命中卡片 */
+  #infoHits {
+    flex: 1;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #fcd34d;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoHits::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+  }
+  #infoHits .info-label {
+    font-size: 11px;
+    color: #92400e;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoHits .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #78350f;
+    line-height: 1;
+  }
+  
+  /* 疑似违规卡片 */
+  #infoSuspect {
+    flex: 1;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #f59e0b;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoSuspect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+  }
+  #infoSuspect .info-label {
+    font-size: 11px;
+    color: #92400e;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoSuspect .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #78350f;
+    line-height: 1;
+  }
+  
+  /* 疑似违规卡片 */
+  #infoSuspect {
+    flex: 1;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #f59e0b;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoSuspect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+  }
+  #infoSuspect .info-label {
+    font-size: 11px;
+    color: #92400e;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoSuspect .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #78350f;
+    line-height: 1;
+  }
+  
+  /* 质检不合格卡片 */
+  #infoBad {
+    flex: 1;
+    background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #fca5a5;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoBad::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #ef4444, #dc2626);
+  }
+  #infoBad .info-label {
+    font-size: 11px;
+    color: #991b1b;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoBad .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #7f1d1d;
+    line-height: 1;
+  }
+
+  /* LLM调用失败卡片 */
+  #infoLlmFailed {
+    flex: 1;
+    background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid #fde047;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  #infoLlmFailed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #eab308, #ca8a04);
+  }
+  #infoLlmFailed .info-label {
+    font-size: 11px;
+    color: #854d0e;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  #infoLlmFailed .info-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #713f12;
+    line-height: 1;
+  }
+  
+  /* 可伸缩卡片 */
+  .detail-card-flex {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .detail-card-flex .detail-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px;
+  }
+  
+  /* 质检结果滚动 */
+  .issue-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  
+  /* 返回按钮样式 */
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    transition: all var(--t);
+  }
+  .back-link:hover {
+    background: var(--bg);
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">‹</button>
+    <div class="sidebar-logo">
+      <div class="logo-icon">🎙️</div>
+      <div class="logo-text">录音质检系统</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a href="/tasks" class="nav-item">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">录音质检管理</span>
+        </a>
+        <a href="/quality-rules" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">质检规则管理</span>
+        </a>
+        <a href="/sensitive-words" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">敏感词维护</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-inner">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          系统运行正常
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="topbar">
+      <a href="#" id="backLink" class="back-link">← 返回录音列表</a>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-title" id="pageTitle">质检详情</div>
+    </div>
+
+    <!-- 左右分栏布局 -->
+    <div class="detail-container">
+      <!-- 左侧：音频 + 对话列表 -->
+      <div class="detail-left">
+        <!-- 音频播放（自定义播放器） -->
+        <div class="audio-wrapper" id="audioWrapper" style="display:none">
+          <audio id="audioPlayer" style="display:none"></audio>
+          <div class="custom-player">
+            <button class="play-btn" id="playBtn">▶</button>
+            <div class="progress-wrap">
+              <div class="progress-track">
+                <div class="progress-played" id="progressPlayed"></div>
+                <div class="progress-handle" id="progressHandle"></div>
+              </div>
+              <input type="range" class="progress-input" id="progressInput" min="0" max="100" value="0" step="0.1">
+            </div>
+            <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+            <div class="speed-control">
+              <span class="speed-label">倍速 <span class="speed-arrow">▾</span></span>
+              <div class="speed-menu">
+                <button class="speed-menu-item" data-speed="0.5">0.5x</button>
+                <button class="speed-menu-item" data-speed="0.75">0.75x</button>
+                <button class="speed-menu-item active" data-speed="1">1x</button>
+                <button class="speed-menu-item" data-speed="1.25">1.25x</button>
+                <button class="speed-menu-item" data-speed="1.5">1.5x</button>
+                <button class="speed-menu-item" data-speed="2">2x</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 对话列表（可滚动） -->
+        <div class="detail-card detail-card-flex">
+          <div class="detail-card-head">
+            <div class="detail-card-title">📋 对话列表 <span class="text-muted text-sm" id="segmentCount">共 0 段</span></div>
+          </div>
+          <div class="detail-card-body">
+            <div class="segment-list" id="segmentList">
+              <div style="color:var(--text-muted);text-align:center;padding:24px">加载中…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 右侧：质检结果 -->
+      <div class="detail-right">
+        <div class="detail-card detail-card-flex">
+          <div class="detail-card-head">
+            <div class="detail-card-title">🔍 质检结果</div>
+            <span class="text-muted text-sm" id="issueCount">共 0 项</span>
+          </div>
+          <!-- 状态信息（放在质检结果内部） -->
+          <div class="info-grid info-grid-top">
+            <div class="info-item" id="infoResult">
+              <div class="info-label">质检结论</div>
+              <div class="info-value">-</div>
+            </div>
+          </div>
+          <div class="info-grid info-grid-bottom">
+            <div class="info-item" id="infoHits">
+              <div class="info-label">敏感词命中</div>
+              <div class="info-value">-</div>
+            </div>
+            <div class="info-item" id="infoSuspect">
+              <div class="info-label">疑似违规</div>
+              <div class="info-value">-</div>
+            </div>
+            <div class="info-item" id="infoBad">
+              <div class="info-label">质检不合格</div>
+              <div class="info-value">-</div>
+            </div>
+          </div>
+          <div class="detail-card-body">
+            <div class="issue-scroll" id="issueList">
+              <div style="color:var(--text-muted);text-align:center;padding:24px">加载中…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleSidebar() { document.getElementById('layout').classList.toggle('collapsed'); }
+
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fmtSeconds(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${pad(m)}:${pad(sec)}`;
+}
+function esc(s) {
+  if (!s && s !== 0) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function statusBadge(s, l) {
+  const m = {
+    completed:'badge-green', failed:'badge-red', quality_checking:'badge-purple',
+    transcribing:'badge-blue', upload:'badge-yellow'
+  };
+  return `<span class="badge ${m[s]||'badge-gray'}">${esc(l||s)}</span>`;
+}
+
+let recData = null;
+let segments = [];
+let currentSegmentIndex = -1;
+
+// 高亮对话并滚动到可见
+function highlightSegment(index) {
+  document.querySelectorAll('.chat-item').forEach((item, i) => {
+    if (i === index) {
+      item.classList.add('active');
+      item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+// 点击对话 -> 跳转音频
+function seekToSegment(index) {
+  if (segments[index]) {
+    const audio = document.getElementById('audioPlayer');
+    audio.currentTime = segments[index].start;
+    audio.play();
+    highlightSegment(index);
+  }
+}
+
+// 点击质检结果 -> 高亮对应对话
+function highlightIssueSegment(index) {
+  // 清除所有高亮
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('issue-active');
+  });
+  // 高亮目标对话
+  const chatItems = document.querySelectorAll('.chat-item');
+  if (chatItems[index]) {
+    chatItems[index].classList.add('issue-active');
+    chatItems[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+async function loadRecording() {
+  const path = window.location.pathname;
+  const recId = path.split('/').pop();
+  
+  console.log('Loading recording:', recId);
+  
+  try {
+    const res = await fetch(`/api/recordings/${recId}`);
+    if (!res.ok) throw new Error('API 请求失败: ' + res.status);
+    recData = await res.json();
+    console.log('API data:', recData);
+    render();
+    document.getElementById('backLink').href = '/tasks';
+  } catch(e) {
+    console.error('加载失败:', e);
+    document.getElementById('pageTitle').textContent = '加载失败';
+  }
+}
+
+function render() {
+  if (!recData) return;
+  
+  document.getElementById('pageTitle').textContent = recData.audio_filename;
+  
+  const q = recData.quality_report;
+  const issues = q?.issues || [];
+  
+  // 统计三级判定数量
+  const badIssues = issues.filter(i => i.qualified === '不合格');
+  const suspectIssues = issues.filter(i => i.qualified === '疑似违规');
+  const okIssues = issues.filter(i => i.qualified === '合格');
+  
+  document.getElementById('infoHits').querySelector('.info-value').textContent = q?.total_sensitive_hits || 0;
+  document.getElementById('infoBad').querySelector('.info-value').textContent = badIssues.length;
+  document.getElementById('infoSuspect').querySelector('.info-value').textContent = suspectIssues.length;
+  
+  const overallStatus = q?.qualified || '合格';
+  document.getElementById('infoResult').querySelector('.info-value').innerHTML = 
+    overallStatus === '不合格' 
+      ? '<span class="badge badge-red">不合格</span>'
+      : overallStatus === '疑似违规'
+        ? '<span class="badge badge-yellow">疑似违规</span>'
+        : recData.status === 'completed' 
+          ? '<span class="badge badge-green">合格</span>'
+          : '<span class="badge badge-gray">未质检</span>';
+  
+  // 音频
+  const audioWrapper = document.getElementById('audioWrapper');
+  const audioPlayer = document.getElementById('audioPlayer');
+  if (recData.audio_url) {
+    audioPlayer.src = recData.audio_url;
+    audioWrapper.style.display = 'block';
+  } else {
+    audioWrapper.style.display = 'none';
+  }
+  
+  // 对话列表
+  const transcript = recData.transcript || {segments: [], speakers: []};
+  segments = transcript.segments || [];
+  const expertId = segments.find(s => s.is_expert)?.speaker || null;
+  
+  const speakerMap = {};
+  const speakers = [...new Set(segments.map(s => s.speaker))].sort();
+  speakers.forEach((sp, idx) => {
+    speakerMap[sp] = `发言人 ${idx + 1}`;
+  });
+  const expertDisplayName = expertId ? speakerMap[expertId] : null;
+  
+  document.getElementById('segmentCount').textContent = `共 ${segments.length} 段${expertDisplayName ? `（${expertDisplayName} 为评标专家）` : ''}`;
+  
+  const segmentList = document.getElementById('segmentList');
+  if (segments.length === 0) {
+    segmentList.innerHTML = '<div class="no-issues"><div class="icon">🎙️</div><div>暂无转写内容</div></div>';
+  } else {
+    segmentList.innerHTML = segments.map((s, idx) => {
+      const isExpert = s.is_expert;
+      const speakerName = speakerMap[s.speaker] || s.speaker;
+      const baseSide = s.speaker === speakers[0] ? 'left' : 'right';
+      const sideClass = isExpert ? `${baseSide} expert` : baseSide;
+      return `
+        <div class="chat-item ${sideClass}" onclick="seekToSegment(${idx})">
+          <div class="chat-bubble">${esc(s.text)}</div>
+          <div class="chat-meta">
+            <span class="chat-speaker ${isExpert ? 'expert' : ''}">${isExpert ? '⭐ ' : ''}${speakerName}</span>
+            <span class="chat-time">${fmtSeconds(s.start)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  
+  // 质检结果
+  document.getElementById('issueCount').textContent = `共 ${issues.length} 项`;
+  
+  const issueList = document.getElementById('issueList');
+  if (issues.length === 0) {
+    issueList.innerHTML = '<div class="no-issues"><div class="icon">✅</div><div>未检测到敏感词命中</div></div>';
+  } else {
+    issueList.innerHTML = issues.map(i => {
+      let badgeClass = 'badge-green';
+      let badgeText = '合格';
+      let itemClass = '';
+      if (i.qualified === '不合格') {
+        badgeClass = 'badge-red';
+        badgeText = '不合格';
+        itemClass = 'bad';
+      } else if (i.qualified === '疑似违规') {
+        badgeClass = 'badge-yellow';
+        badgeText = '疑似违规';
+        itemClass = 'suspect';
+      }
+      return `
+      <div class="issue-item ${itemClass}" onclick="highlightIssueSegment(${i.segment_index})" style="cursor:pointer">
+        <div class="issue-head">
+          <span class="issue-word">${esc(i.sensitive_word)}</span>
+          <span class="issue-speaker">发言人：${esc(i.speaker)}</span>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="issue-text">"${esc(i.sentence)}"</div>
+        <div class="issue-reason">
+          <strong>分析：</strong>${esc(i.llm_reason)}
+        </div>
+      </div>
+    `}).join('');
+  }
+  
+  // 高亮命中敏感词的对话
+  const hitSegments = new Set();
+  issues.forEach(i => {
+    if (i.segment_index !== undefined) hitSegments.add(i.segment_index);
+  });
+  document.querySelectorAll('.chat-item').forEach((el, idx) => {
+    if (hitSegments.has(idx)) el.classList.add('has-hit');
+  });
+}
+
+// ── 自定义播放器控制 ──
+let isPlaying = false;
+const audio = document.getElementById('audioPlayer');
+const playBtn = document.getElementById('playBtn');
+const progressPlayed = document.getElementById('progressPlayed');
+const progressHandle = document.getElementById('progressHandle');
+const progressInput = document.getElementById('progressInput');
+const timeDisplay = document.getElementById('timeDisplay');
+
+function updateProgress() {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  progressPlayed.style.width = pct + '%';
+  progressHandle.style.left = pct + '%';
+  progressInput.value = pct;
+  timeDisplay.textContent = `${fmtSeconds(audio.currentTime)} / ${fmtSeconds(audio.duration)}`;
+}
+
+function togglePlay() {
+  if (audio.paused) {
+    audio.play();
+    playBtn.textContent = '⏸';
+    isPlaying = true;
+  } else {
+    audio.pause();
+    playBtn.textContent = '▶';
+    isPlaying = false;
+  }
+}
+
+if (playBtn) {
+  playBtn.addEventListener('click', togglePlay);
+}
+
+if (audio) {
+  audio.addEventListener('timeupdate', updateProgress);
+  audio.addEventListener('loadedmetadata', updateProgress);
+  audio.addEventListener('ended', () => {
+    playBtn.textContent = '▶';
+    isPlaying = false;
+    progressPlayed.style.width = '100%';
+    progressHandle.style.left = '100%';
+  });
+  audio.addEventListener('play', () => { playBtn.textContent = '⏸'; isPlaying = true; });
+  audio.addEventListener('pause', () => { playBtn.textContent = '▶'; isPlaying = false; });
+}
+
+if (progressInput) {
+  progressInput.addEventListener('input', function() {
+    if (audio.duration) {
+      audio.currentTime = (this.value / 100) * audio.duration;
+      updateProgress();
+    }
+  });
+  progressInput.addEventListener('mousedown', () => { if (isPlaying) audio.pause(); });
+  progressInput.addEventListener('mouseup', () => { if (isPlaying) audio.play(); });
+}
+
+// 倍速控制 - hover 弹出菜单
+document.querySelectorAll('.speed-menu-item').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const speed = parseFloat(this.dataset.speed);
+    const audio = document.getElementById('audioPlayer');
+    if (audio) audio.playbackRate = speed;
+    document.querySelectorAll('.speed-menu-item').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    // 更新标签显示
+    const label = document.querySelector('.speed-label');
+    if (label) label.innerHTML = `${speed}x <span class="speed-arrow">▾</span>`;
+  });
+});
+
+// 音频播放时间更新 -> 定位对话
+const audioPlayerEl = document.getElementById('audioPlayer');
+if (audioPlayerEl) {
+  audioPlayerEl.addEventListener('timeupdate', function() {
+    const currentTime = this.currentTime;
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i];
+      const segEnd = seg.end || (segments[i+1]?.start || seg.start + 10);
+      if (currentTime >= seg.start && currentTime < segEnd) {
+        if (currentSegmentIndex !== i) {
+          currentSegmentIndex = i;
+          highlightSegment(i);
+        }
+        break;
+      }
+    }
+  });
+}
+
+// 加载数据
+loadRecording();
+</script>
+</body>
+</html>
