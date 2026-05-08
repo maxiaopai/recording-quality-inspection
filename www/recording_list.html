@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>录音质检管理 - 录音质检系统</title>
+<link rel="stylesheet" href="/www/shared.css">
+<style>
+  .toolbar {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .toolbar-search {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toolbar-search input {
+    padding: 7px 11px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    outline: none;
+    background: var(--bg);
+    width: 200px;
+  }
+  .page-content {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .page-content .card {
+    margin-bottom: 0;
+  }
+
+  /* 看板 */
+  .dashboard-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .dashboard-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .dashboard-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .dashboard-info {
+    flex: 1;
+  }
+  .dashboard-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .dashboard-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* 分页器 */
+  .pagination-bar {
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .pagination-info { font-size: 13px; color: var(--text-muted); }
+  .pagination-controls { display: flex; align-items: center; gap: 6px; }
+  .page-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 30px; height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px; font-weight: 600;
+    background: var(--surface); color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--t);
+  }
+  .page-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--border-strong); }
+  .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+  tbody tr:hover td { background: var(--surface-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.has-issue td { background: #FFF5F5; }
+  tbody tr.has-issue:hover td { background: #FFF0F0; }
+  
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 600;
+  }
+  .status-badge.completed { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+  .status-badge.quality_checking { background: #F3E8FF; color: #6B21A8; border: 1px solid #DDD6FE; }
+  .status-badge.transcribing { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .status-badge.upload { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+  .status-badge.failed { background: var(--danger-bg); color: var(--danger); border: 1px solid #FECACA; }
+
+  .progress-mini {
+    width: 60px; height: 4px;
+    background: var(--border); border-radius: 2px;
+    overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px;
+  }
+  .progress-mini .bar {
+    height: 100%; border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+  .progress-mini .bar.green { background: var(--success); }
+  .progress-mini .bar.blue { background: var(--primary); }
+  .progress-mini .bar.purple { background: #8B5CF6; }
+  .progress-mini .bar.red { background: var(--danger); }
+
+  .action-group { display: flex; gap: 6px; }
+  
+  .has-issue-dot::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    background: var(--danger);
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  
+  .confirm-box { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin: 10px 0 20px; }
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">‹</button>
+    <div class="sidebar-logo">
+      <div class="logo-icon">🎙️</div>
+      <div class="logo-text">录音质检系统</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a href="/tasks" class="nav-item active">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">录音质检管理</span>
+        </a>
+        <a href="/quality-rules" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">质检规则管理</span>
+        </a>
+        <a href="/sensitive-words" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">敏感词维护</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-inner">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          系统运行正常
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">🎙️ 录音质检管理</div>
+      <div class="topbar-spacer"></div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="openUpload()">＋ 上传录音</button>
+      <div class="toolbar-search">
+        <input type="text" id="searchInput" placeholder="请输入录音名称查询" oninput="onSearch()">
+        <button class="btn btn-primary btn-sm" onclick="filterRecordings()">查询</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearSearch()">重置</button>
+      </div>
+      <span class="text-muted text-sm" id="totalCount" style="white-space:nowrap">共 0 条</span>
+    </div>
+
+    <div class="page-content">
+      <!-- 看板 -->
+      <div class="dashboard-row">
+        <div class="dashboard-card">
+          <div class="dashboard-icon" style="background:#EFF6FF;color:#2563EB">🎙️</div>
+          <div class="dashboard-info">
+            <div class="dashboard-label">录音总数</div>
+            <div class="dashboard-value" id="dashTotal">0</div>
+          </div>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-icon" style="background:#ECFDF5;color:#059669">✅</div>
+          <div class="dashboard-info">
+            <div class="dashboard-label">合格</div>
+            <div class="dashboard-value" id="dashPass">0</div>
+          </div>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-icon" style="background:#FEF2F2;color:#DC2626">❌</div>
+          <div class="dashboard-info">
+            <div class="dashboard-label">不合格</div>
+            <div class="dashboard-value" id="dashFail">0</div>
+          </div>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-icon" style="background:#FEF3C7;color:#D97706">⚠️</div>
+          <div class="dashboard-info">
+            <div class="dashboard-label">疑似违规</div>
+            <div class="dashboard-value" id="dashFlag">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:200px">录音名称</th>
+                <th style="width:140px">质检状态</th>
+                <th style="width:100px;text-align:center">敏感词命中</th>
+                <th style="width:110px">质检结论</th>
+                <th style="width:150px">创建时间</th>
+                <th style="width:200px">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="6"><div class="empty-state"><div class="icon">⏳</div><div class="title">加载中…</div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 分页器 -->
+      <div class="pagination-bar">
+        <div class="pagination-info" id="pageInfo">共 0 条</div>
+        <div class="pagination-controls" id="pageControls"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 上传录音弹窗 -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal">
+    <div class="modal-title">📤 上传录音</div>
+    <div class="form-group">
+      <label>音频文件 <span class="text-danger">*</span></label>
+      <input type="file" id="audioFile" accept="audio/*" multiple style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg)">
+      <div class="form-hint">支持一次选择多个音频文件，将自动调用 ASR 转写并质检。</div>
+    </div>
+    <div class="upload-result" id="uploadResult"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeUpload()">取消</button>
+      <button class="btn btn-primary" id="doUploadBtn" onclick="doUpload()">确认上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div class="confirm-box" id="deleteMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">取消</button>
+      <button class="btn btn-danger" id="doDel">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleSidebar() { document.getElementById('layout').classList.toggle('collapsed'); }
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function esc(s) { if (!s && s!==0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+let recordings = [];
+let filtered = [];
+let search = '';
+let pageSize = 10;
+let currentPage = 1;
+
+async function loadRecordings() {
+  try {
+    const res = await fetch('/api/recordings');
+    recordings = await res.json();
+    filtered = [...recordings];
+    currentPage = 1;
+    updateDashboard();
+    render();
+  } catch(e) {
+    console.error(e);
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">❌</div><div class="title">加载失败</div><div class="desc">${esc(e.message)}</div></div></td></tr>`;
+  }
+}
+
+function updateDashboard() {
+  document.getElementById('dashTotal').textContent = recordings.length;
+  const pass = recordings.filter(r => r.quality_report?.qualified === '合格').length;
+  const fail = recordings.filter(r => r.quality_report?.qualified === '不合格').length;
+  const flag = recordings.filter(r => r.quality_report?.qualified === '疑似违规').length;
+  document.getElementById('dashPass').textContent = pass;
+  document.getElementById('dashFail').textContent = fail;
+  document.getElementById('dashFlag').textContent = flag;
+}
+
+function goPage(p) {
+  currentPage = p;
+  render();
+}
+
+function renderPagination(total) {
+  const totalPages = Math.ceil(total / pageSize);
+  const el = document.getElementById('pageControls');
+  document.getElementById('pageInfo').textContent = `共 ${total} 条`;
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  let html = '';
+  html += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">上一页</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+      html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+    } else if (i === currentPage - 3 || i === currentPage + 3) {
+      html += `<span style="padding:0 4px;color:var(--text-muted)">...</span>`;
+    }
+  }
+  html += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">下一页</button>`;
+  el.innerHTML = html;
+}
+
+function statusBadge(r) {
+  const m = {
+    completed: 'completed',
+    quality_checking: 'quality_checking',
+    transcribing: 'transcribing',
+    upload: 'upload',
+    failed: 'failed',
+  };
+  const l = {
+    completed: '已完成',
+    quality_checking: '质检中',
+    transcribing: '转写中',
+    upload: '待处理',
+    failed: '失败',
+  };
+  const s = r.status || 'upload';
+  const label = l[s] || s;
+  return `<span class="status-badge ${m[s]||''}">${esc(label)}</span>`;
+}
+
+function qualityBadge(r) {
+  if (!r || !r.quality_report) return '<span class="text-muted" style="font-size:12px">未质检</span>';
+  const qr = r.quality_report;
+  const q = qr.qualified;
+  if (q === '不合格') return `<span class="badge badge-red">不合格</span>`;
+  if (q === 'LLM调用失败') return `<span class="badge" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A">LLM失败</span>`;
+  if (q === '疑似违规') return `<span class="badge badge-yellow">疑似违规</span>`;
+  return '<span class="badge badge-green">✅ 合格</span>';
+}
+
+function progBar(r) {
+  const p = r.progress || 0;
+  const cls = r.status === 'completed' ? 'green' : r.status === 'failed' ? 'red' : 'blue';
+  return `<div class="progress-mini"><div class="bar ${cls}" style="width:${p}%"></div></div>${p}%`;
+}
+
+function render() {
+  const tc = document.getElementById('totalCount');
+  if (tc) tc.textContent = `共 ${filtered.length} 条`;
+  const tbody = document.getElementById('tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">🎙️</div><div class="title">暂无录音</div><div class="desc">点击"上传录音"添加第一条录音</div></div></td></tr>`;
+    renderPagination(0);
+    return;
+  }
+  const start = (currentPage - 1) * pageSize;
+  const pageData = filtered.slice(start, start + pageSize);
+  tbody.innerHTML = pageData.map(r => {
+    const qr = r.quality_report || {};
+    const hasIssue = qr.bad_count > 0;
+    const hits = qr.total_sensitive_hits || 0;
+    return `<tr class="${hasIssue ? 'has-issue' : ''}">
+      <td>
+        <a href="/recording/${r.id}" class="task-link">${esc(r.audio_filename)}</a>
+        ${hasIssue ? '<span class="has-issue-dot"></span>' : ''}
+      </td>
+      <td>${statusBadge(r)}<br><span style="font-size:11px;color:var(--text-muted)">${progBar(r)}</span></td>
+      <td style="text-align:center">${hits > 0 ? `<strong style="color:var(--danger)">${hits}</strong>` : '<span class="text-muted">0</span>'}</td>
+      <td>${qualityBadge(r)}</td>
+      <td><span style="font-size:12px;color:var(--text-muted)">${fmtTime(r.created_at)}</span></td>
+      <td>
+        <div class="action-group">
+          <a href="/recording/${r.id}" class="btn btn-ghost btn-sm">查看详情</a>
+          ${r.status === 'completed' ? `<button class="btn btn-ghost btn-sm" onclick="recheck(${r.id})">重新质检</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="askDelete(${r.id},'${esc(r.audio_filename)}')">删除</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  renderPagination(filtered.length);
+}
+
+function onSearch() {
+  clearTimeout(onSearch._t);
+  onSearch._t = setTimeout(() => filterRecordings(), 350);
+}
+
+function filterRecordings() {
+  search = document.getElementById('searchInput').value.trim().toLowerCase();
+  filtered = search ? recordings.filter(r => r.audio_filename.toLowerCase().includes(search)) : [...recordings];
+  render();
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  search = '';
+  filtered = [...recordings];
+  render();
+}
+
+// 上传
+function openUpload() {
+  document.getElementById('uploadModal').classList.add('open');
+  document.getElementById('audioFile').value = '';
+  document.getElementById('transcriptFile').value = '';
+  document.getElementById('uploadResult').innerHTML = '';
+  document.getElementById('doUploadBtn').disabled = false;
+}
+function closeUpload() { document.getElementById('uploadModal').classList.remove('open'); }
+
+async function doUpload() {
+  const files = document.getElementById('audioFile').files;
+
+  if (!files || files.length === 0) { toast('请选择音频文件', 'error'); return; }
+
+  document.getElementById('doUploadBtn').disabled = true;
+  document.getElementById('uploadResult').innerHTML = `<div style="color:var(--text-muted);padding:8px">准备上传 ${files.length} 个文件…</div>`;
+
+  const results = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    document.getElementById('uploadResult').innerHTML = `<div style="color:var(--text-muted);padding:8px">正在上传 (${i+1}/${files.length}): ${esc(file.name)}…</div>`;
+
+    const fd = new FormData();
+    fd.append('audio_file', file);
+
+    try {
+      const res = await fetch('/api/recordings/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        results.push({ name: file.name, ok: true });
+      } else {
+        results.push({ name: file.name, ok: false, err: data.detail || '上传失败' });
+      }
+    } catch(e) {
+      results.push({ name: file.name, ok: false, err: e.message });
+    }
+  }
+
+  const okCount = results.filter(r => r.ok).length;
+  const failCount = results.length - okCount;
+
+  let html = '';
+  if (okCount > 0) {
+    html += `<div style="color:var(--success);padding:8px;font-weight:600">✅ ${okCount} 个文件上传成功，质检已启动</div>`;
+  }
+  if (failCount > 0) {
+    html += `<div style="color:var(--danger);padding:8px">❌ ${failCount} 个文件上传失败</div>`;
+    html += `<ul style="color:var(--danger);padding:0 8px;margin:0;list-style:none">`;
+    results.filter(r => !r.ok).forEach(r => {
+      html += `<li style="font-size:12px">${esc(r.name)}: ${esc(r.err)}</li>`;
+    });
+    html += `</ul>`;
+  }
+
+  document.getElementById('uploadResult').innerHTML = html;
+
+  if (okCount > 0) {
+    setTimeout(() => { closeUpload(); loadRecordings(); }, 1500);
+  } else {
+    document.getElementById('doUploadBtn').disabled = false;
+  }
+}
+
+// 重新质检
+async function recheck(id) {
+  await fetch(`/api/recordings/${id}/recheck`, { method: 'POST' });
+  toast('已启动重新质检');
+  setTimeout(() => loadRecordings(), 1500);
+}
+
+// 删除
+let delId = null;
+function askDelete(id, name) {
+  delId = id;
+  document.getElementById('deleteMsg').textContent = `确定删除录音「${name}」？`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
+document.getElementById('doDel').addEventListener('click', async () => {
+  if (!delId) return;
+  await fetch(`/api/recordings/${delId}`, { method: 'DELETE' });
+  closeDelete(); delId = null; toast('删除成功'); loadRecordings();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeUpload(); closeDelete(); }
+});
+
+loadRecordings();
+
+// 自动刷新（质检中状态）
+setInterval(() => {
+  const hasProcessing = recordings.some(r => r.status !== 'completed' && r.status !== 'failed');
+  if (hasProcessing) loadRecordings();
+}, 5000);
+</script>
+</body>
+</html>
