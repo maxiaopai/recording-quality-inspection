@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>录音质检系统</title>
+<link rel="stylesheet" href="/www/shared.css">
+<style>
+  tbody tr:hover td { background: var(--surface-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+  .time-chip { font-size: 12px; color: var(--text-muted); }
+  .task-link { font-weight: 600; color: var(--primary); text-decoration: none; font-size: 13.5px; }
+  .task-link:hover { text-decoration: underline; }
+  .confirm-box { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin: 10px 0 20px; }
+  tbody tr.has-issue td { background: #FFF5F5; }
+  tbody tr.has-issue:hover td { background: #FFF0F0; }
+  .has-issue-dot::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px;
+    background: var(--danger);
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .file-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .file-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .file-item .size { font-size: 11px; color: var(--text-muted); min-width: 50px; text-align: right; }
+  .file-item .del {
+    width: 20px; height: 20px; min-width: 20px;
+    border-radius: 50%; border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .file-item .del:hover { background: var(--danger-bg); color: var(--danger); }
+  .upload-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--text-muted); margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">‹</button>
+    <div class="sidebar-logo">
+      <div class="logo-icon">🎙️</div>
+      <div class="logo-text">录音质检系统</div>
+    </div>
+        <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a href="/tasks" class="nav-item">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">录音质检管理</span>
+        </a>
+        <a href="/quality-rules" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">质检规则管理</span>
+        </a>
+        <a href="/sensitive-words" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">敏感词维护</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-inner">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          系统运行正常
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">🏠 录音质检系统</div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" onclick="openUpload()">＋ 新建任务</button>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <!-- 任务列表 -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-head-title">📁 质检任务管理</div>
+          <span class="text-muted text-sm" id="totalCount">共 0 个任务</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>任务名称</th>
+                <th style="width:90px">录音数量</th>
+                <th style="width:100px">状态</th>
+                <th style="width:120px">质检结论</th>
+                <th style="width:150px">创建时间</th>
+                <th style="width:140px">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="6"><div class="empty-state"><div class="icon">⏳</div><div class="title">加载中…</div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 新建任务弹窗 -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-title">新建任务 <span style="font-size:13px;color:var(--text-muted);font-weight:400">（支持同时上传多个录音 + 转写文本）</span></div>
+
+    <!-- 任务名称 -->
+    <div class="form-group">
+      <label>任务名称（可选）</label>
+      <input type="text" id="taskName" placeholder="留空则使用音频文件名">
+    </div>
+
+    <!-- 音频文件 -->
+    <div class="upload-section-title">🎙️ 音频文件（必填）</div>
+    <div id="audioFileList"></div>
+    <div style="margin-bottom:12px">
+      <input type="file" id="audioInput" multiple accept=".mp3,.wav,.m4a,.ogg,.flac" style="display:none" onchange="addAudioFiles(this.files)">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('audioInput').click()">＋ 添加音频</button>
+    </div>
+
+    <!-- 转写文件 -->
+    <div class="upload-section-title">📄 转写文件（必填，支持 JSON / Word）</div>
+    <div id="transcriptFileList"></div>
+    <div style="margin-bottom:4px">
+      <input type="file" id="transcriptInput" multiple accept=".json,.doc,.docx" style="display:none" onchange="addTranscriptFiles(this.files)">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('transcriptInput').click()">＋ 添加转写</button>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px">JSON 或 Word（.doc .docx）均可</span>
+    </div>
+
+    <!-- 提示 -->
+    <div id="uploadHint" style="font-size:12px;color:var(--text-muted);margin-bottom:16px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm)">
+      💡 音频和转写文件数量需一致，按上传顺序一一对应匹配
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeUpload()">取消</button>
+      <button class="btn btn-primary" onclick="submitTask()">确认创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div class="confirm-box" id="deleteMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">取消</button>
+      <button class="btn btn-danger" id="doDelete">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleSidebar() { document.getElementById('layout').classList.toggle('collapsed'); }
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function openUpload() {
+  audioFiles = []; transcriptFiles = [];
+  document.getElementById('uploadModal').classList.add('open');
+  document.getElementById('taskName').value = '';
+  renderFileList('audio');
+  renderFileList('transcript');
+}
+function closeUpload() { document.getElementById('uploadModal').classList.remove('open'); }
+function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
+
+let audioFiles = [];
+let transcriptFiles = [];
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(0)+'KB';
+  return (bytes/1024/1024).toFixed(1)+'MB';
+}
+
+function renderFileList(type) {
+  const list = type === 'audio' ? audioFiles : transcriptFiles;
+  const el = document.getElementById(type === 'audio' ? 'audioFileList' : 'transcriptFileList');
+  if (!list.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">暂未添加文件</div>`;
+    return;
+  }
+  el.innerHTML = list.map((f, i) => `
+    <div class="file-item">
+      <span style="font-size:14px">${type === 'audio' ? '🎙️' : '📄'}</span>
+      <span class="name" title="${f.name}">${f.name}</span>
+      <span class="size">${fmtSize(f.size)}</span>
+      <button class="del" onclick="removeFile(${i},'${type}')" title="移除">×</button>
+    </div>`).join('');
+}
+
+function addAudioFiles(files) {
+  for (const f of files) audioFiles.push(f);
+  renderFileList('audio');
+  document.getElementById('audioInput').value = '';
+}
+function addTranscriptFiles(files) {
+  for (const f of files) transcriptFiles.push(f);
+  renderFileList('transcript');
+  document.getElementById('transcriptInput').value = '';
+}
+function removeFile(idx, type) {
+  if (type === 'audio') audioFiles.splice(idx, 1);
+  else transcriptFiles.splice(idx, 1);
+  renderFileList(type);
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function esc(s) {
+  if (!s && s !== 0) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function statusBadge(s, l) {
+  const m = { completed:'badge-green', failed:'badge-red', quality_checking:'badge-purple', transcribing:'badge-blue', upload:'badge-yellow' };
+  return `<span class="badge ${m[s]||'badge-gray'}">${esc(l||s)}</span>`;
+}
+function qualityBadge(r) {
+  if (!r) return '<span class="badge badge-gray">未质检</span>';
+  const bad = (r.issues||[]).filter(i => !i.qualified);
+  if (bad.length > 0) return `<span class="badge badge-red has-issue-dot">不合格（${bad.length}项）</span>`;
+  return '<span class="badge badge-green">✅ 合格</span>';
+}
+
+let tasks = [];
+async function loadTasks() {
+  try {
+    const res = await fetch('/api/tasks');
+    tasks = await res.json();
+    render();
+    updateStats();
+  } catch(e) { console.error(e); }
+}
+
+function updateStats() {
+  const total = tasks.length;
+  const done  = tasks.filter(t => t.status === 'completed').length;
+  const bad   = tasks.filter(t => (t.quality_report?.issues||[]).filter(i => !i.qualified).length > 0).length;
+  const pend  = tasks.filter(t => !['completed','failed'].includes(t.status)).length;
+  document.getElementById('sTotal').textContent = total;
+  document.getElementById('sDone').textContent  = done;
+  document.getElementById('sBad').textContent   = bad;
+  document.getElementById('sPend').textContent = pend;
+  document.getElementById('totalCount').textContent = `共 ${total} 个任务`;
+}
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  if (!tasks.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+      <div class="icon">📂</div>
+      <div class="title">暂无任务</div>
+      <div class="desc">点击右上角「新建任务」开始质检</div>
+    </div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = tasks.map(t => {
+    const r = t.quality_report || {};
+    const bad = (r.issues||[]).filter(i => !i.qualified);
+    return `<tr class="${bad.length?'has-issue':''}">
+      <td><span class="task-link">${esc(t.name)}</span></td>
+      <td>${statusBadge(t.status, t.progress_label)}</td>
+      <td>${qualityBadge(r)}</td>
+      <td><span class="text-muted text-sm">${esc(t.audio_filename||'-')}</span></td>
+      <td><span class="time-chip">${fmtTime(t.created_at)}</span></td>
+      <td>
+        <div class="flex gap-6">
+          <a href="/task/${t.id}" class="btn btn-ghost btn-sm">查看详情</a>
+          <button class="btn btn-danger btn-sm" onclick="askDelete(${t.id},'${esc(t.name)}')">删除</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function submitTask() {
+  if (!audioFiles.length) { toast('请至少添加一个音频文件', 'error'); return; }
+  if (audioFiles.length !== transcriptFiles.length) {
+    toast(`音频文件（${audioFiles.length}个）和转写文件（${transcriptFiles.length}个）数量不一致`, 'error');
+    return;
+  }
+  const name = document.getElementById('taskName').value.trim();
+  const fd = new FormData();
+  if (name) fd.append('name', name);
+  audioFiles.forEach(f => fd.append('audio_files', f));
+  transcriptFiles.forEach(f => fd.append('transcript_files', f));
+  closeUpload();
+  const res = await fetch('/api/tasks', {method:'POST', body:fd});
+  if (res.ok) {
+    const d = await res.json();
+    toast(`成功创建 ${d.count} 个任务`);
+    loadTasks();
+  } else {
+    const e = await res.json();
+    toast('创建失败：'+(e.detail||''), 'error');
+  }
+}
+
+let delId = null;
+function askDelete(id, name) {
+  delId = id;
+  document.getElementById('deleteMsg').textContent = `确定删除任务「${name}」？删除后无法恢复。`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+document.getElementById('doDelete').onclick = async () => {
+  if (!delId) return;
+  await fetch(`/api/tasks/${delId}`, {method:'DELETE'});
+  closeDelete(); delId = null;
+  toast('删除成功'); loadTasks();
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeUpload(); closeDelete(); }
+});
+
+loadTasks();
+setInterval(loadTasks, 5000);
+</script>
+</body>
+</html>
