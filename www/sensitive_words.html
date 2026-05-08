@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>敏感词维护 - 录音质检系统</title>
+<link rel="stylesheet" href="/www/shared.css">
+<style>
+  .page-fixed {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--topbar-h));
+    overflow: hidden;
+  }
+
+  /* ── 工具栏：在列表上方 ── */
+  .toolbar {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .toolbar-search {
+    margin-left: auto;
+  }
+  .toolbar-search input {
+    padding: 7px 11px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    outline: none;
+    background: var(--bg);
+    width: 200px;
+    transition: border-color var(--t);
+  }
+  .toolbar-search input:focus {
+    border-color: var(--primary-light);
+    background: #fff;
+  }
+
+  /* ── 列表区域 ── */
+  .table-area {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg);
+    padding: 16px 24px;
+  }
+
+  .card { background: var(--surface); }
+
+  .category-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 700;
+    background: #EEF2FF; color: var(--primary);
+    border: 1px solid #C7D7F5;
+  }
+  .category-badge.risk  { background: var(--warning-bg); color: #92400E; border-color: var(--warning-border); }
+  .category-badge.other { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+
+  tbody tr:hover td { background: var(--surface-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* ── 分页条 ── */
+  .pagination-bar {
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .pagination-info { font-size: 13px; color: var(--text-muted); }
+  .pagination-controls { display: flex; align-items: center; gap: 6px; }
+  .page-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 30px; height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px; font-weight: 600;
+    background: var(--surface); color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--t);
+  }
+  .page-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--border-strong); }
+  .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .confirm-box { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin: 10px 0 20px; }
+
+  .batch-result {
+    margin-top: 10px; padding: 10px 14px;
+    border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+    display: none;
+  }
+  .batch-result.show { display: block; }
+  .batch-result.ok  { background: var(--success-bg); color: var(--success); border: 1px solid #BBF7D0; }
+  .batch-result.err { background: var(--danger-bg);  color: var(--danger);  border: 1px solid #FECACA; }
+
+  .import-inline {
+    display: flex; align-items: center; gap: 8px;
+  }
+  
+  /* 操作按钮组 */
+  .action-group {
+    display: flex;
+    gap: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">‹</button>
+    <div class="sidebar-logo">
+      <div class="logo-icon">🎙️</div>
+      <div class="logo-text">录音质检系统</div>
+    </div>
+        <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a href="/tasks" class="nav-item">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">录音质检管理</span>
+        </a>
+        <a href="/quality-rules" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">质检规则管理</span>
+        </a>
+        <a href="/sensitive-words" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">敏感词维护</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-inner">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          系统运行正常
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">🔒 敏感词管理</div>
+      <div class="topbar-spacer"></div>
+    </div>
+
+    <!-- 工具栏：按钮 + 搜索 -->
+    <div class="toolbar">
+      <div class="import-inline">
+        <button class="btn btn-primary" onclick="openAdd()">＋ 新增敏感词</button>
+        <button class="btn btn-ghost" onclick="openImport()">📥 批量导入</button>
+      </div>
+      <div class="toolbar-search">
+        <input type="text" id="searchInput" placeholder="搜索敏感词…" oninput="onSearch()">
+      </div>
+    </div>
+
+    <!-- 固定页面：列表 + 分页 -->
+    <div class="page-fixed">
+      <div class="table-area">
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:60px">序号</th>
+                  <th>敏感词</th>
+                  <th style="width:130px">类别</th>
+                  <th style="width:160px">添加时间</th>
+                  <th style="width:120px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <tr><td colspan="5"><div class="empty-state"><div class="icon">⏳</div><div class="title">加载中…</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div class="pagination-bar">
+        <div class="pagination-info" id="pageInfo">共 0 条</div>
+        <div class="pagination-controls" id="pageControls"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 新增弹窗 -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title">添加敏感词</div>
+    <div class="form-group">
+      <label>敏感词 <span class="text-danger">*</span></label>
+      <input type="text" id="newWord" placeholder="例如：打招呼" onkeydown="if(event.key==='Enter')submitAdd()">
+    </div>
+    <div class="form-group">
+      <label>类别</label>
+      <select id="newCategory">
+        <option value="评标违规">评标违规</option>
+        <option value="廉洁风险">廉洁风险</option>
+        <option value="串通行为">串通行为</option>
+        <option value="泄密风险">泄密风险</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>说明（可选）</label>
+      <input type="text" id="newDesc" placeholder="简要说明违规场景">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAdd()">取消</button>
+      <button class="btn btn-primary" onclick="submitAdd()">确认添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改弹窗 -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">修改敏感词</div>
+    <div class="form-group">
+      <label>敏感词 <span class="text-danger">*</span></label>
+      <input type="text" id="editWord" placeholder="请输入敏感词">
+    </div>
+    <div class="form-group">
+      <label>类别</label>
+      <select id="editCategory">
+        <option value="评标违规">评标违规</option>
+        <option value="廉洁风险">廉洁风险</option>
+        <option value="串通行为">串通行为</option>
+        <option value="泄密风险">泄密风险</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>说明（可选）</label>
+      <input type="text" id="editDesc" placeholder="简要说明违规场景">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEdit()">取消</button>
+      <button class="btn btn-primary" onclick="submitEdit()">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 批量导入弹窗 -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <div class="modal-title">📥 批量导入敏感词</div>
+    <div class="form-group">
+      <label>选择文件</label>
+      <input type="file" id="batchFileInput" accept=".txt,.json" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg)">
+      <div class="form-hint">支持 .txt（一行一个词）或 .json</div>
+    </div>
+    <div class="batch-result" id="batchResult"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeImport()">取消</button>
+      <button class="btn btn-primary" onclick="doImport()">确认导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div class="confirm-box" id="deleteMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">取消</button>
+      <button class="btn btn-danger" id="doDel">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleSidebar() { document.getElementById('layout').classList.toggle('collapsed'); }
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function openAdd() { document.getElementById('addModal').classList.add('open'); document.getElementById('newWord').value=''; document.getElementById('newCategory').value='评标违规'; document.getElementById('newDesc').value=''; setTimeout(()=>document.getElementById('newWord').focus(),80); }
+function closeAdd() { document.getElementById('addModal').classList.remove('open'); }
+function openImport() { document.getElementById('importModal').classList.add('open'); document.getElementById('batchFileInput').value=''; document.getElementById('batchResult').className='batch-result'; }
+function closeImport() { document.getElementById('importModal').classList.remove('open'); }
+function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
+function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+function esc(s) { if (!s && s!==0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTime(iso) { if (!iso) return '-'; const d=new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function catBadge(cat) { const cls=cat==='廉洁风险'?'risk':cat==='其他'?'other':''; return `<span class="category-badge ${cls}">${esc(cat||'未分类')}</span>`; }
+
+const PAGE_SIZE_DEFAULT = 10;
+let pageSize = PAGE_SIZE_DEFAULT;
+let total = 0, page = 0, search = '';
+
+function buildPage(total, p) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  p = Math.min(Math.max(0, p), totalPages - 1);
+  document.getElementById('pageInfo').textContent = `共 ${total} 条`;
+  const controls = document.getElementById('pageControls');
+  if (total <= pageSize) { controls.innerHTML = ''; return; }
+  const prevDisabled = p === 0 ? 'disabled' : '';
+  const nextDisabled = p >= totalPages - 1 ? 'disabled' : '';
+  let btns = `<button class="page-btn" ${prevDisabled} onclick="goPage(${p-1})">‹</button>`;
+  const range = [];
+  for (let i = Math.max(0, p-2); i <= Math.min(totalPages-1, p+2); i++) range.push(i);
+  if (range[0] > 0) { btns += `<button class="page-btn" onclick="goPage(0)">1</button>`; if (range[0] > 1) btns += `<span style="color:var(--text-muted);padding:0 4px">…</span>`; }
+  range.forEach(i => { btns += `<button class="page-btn ${i===p?'active':''}" onclick="goPage(${i})">${i+1}</button>`; });
+  if (range[range.length-1] < totalPages-1) { if (range[range.length-1] < totalPages-2) btns += `<span style="color:var(--text-muted);padding:0 4px">…</span>`; btns += `<button class="page-btn" onclick="goPage(${totalPages-1})">${totalPages}</button>`; }
+  btns += `<button class="page-btn" ${nextDisabled} onclick="goPage(${p+1})">›</button>`;
+  btns += `<select class="page-size-select" onchange="changePageSize(this.value)" style="margin-left:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;background:var(--surface);cursor:pointer">
+    <option value="10" ${pageSize===10?'selected':''}>10条/页</option>
+    <option value="20" ${pageSize===20?'selected':''}>20条/页</option>
+    <option value="50" ${pageSize===50?'selected':''}>50条/页</option>
+  </select>`;
+  controls.innerHTML = btns;
+}
+
+function changePageSize(size) {
+  pageSize = parseInt(size);
+  loadWords(0);
+}
+
+async function loadWords(p = 0) {
+  try {
+    const skip = p * pageSize;
+    const url = `/api/sensitive-words?skip=${skip}&limit=${pageSize}${search ? '&search=' + encodeURIComponent(search) : ''}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    total = data.total;
+    page = p;
+    renderTable(data.words);
+    buildPage(total, page);
+  } catch(e) { console.error(e); }
+}
+
+function renderTable(words) {
+  const tbody = document.getElementById('tbody');
+  if (!words.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">🔍</div><div class="title">没有找到敏感词</div><div class="desc">试试其他搜索词</div></div></td></tr>`;
+    return;
+  }
+  const start = page * pageSize;
+  tbody.innerHTML = words.map((w, i) => `
+    <tr>
+      <td style="color:var(--text-muted);font-size:12px">${start+i+1}</td>
+      <td><strong>${esc(w.word)}</strong></td>
+      <td>${catBadge(w.category)}</td>
+      <td><span style="font-size:12px;color:var(--text-muted)">${fmtTime(w.created_at)}</span></td>
+      <td>
+        <div class="action-group">
+          <button class="btn btn-ghost btn-sm" onclick="openEdit(${w.id},'${esc(w.word)}','${esc(w.category||'')}', '${esc(w.description||'')}')">修改</button>
+          <button class="btn btn-danger btn-sm" onclick="askDelete(${w.id},'${esc(w.word)}')">删除</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function goPage(p) { loadWords(p); }
+
+let searchTimer = null;
+function onSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    search = document.getElementById('searchInput').value.trim().toLowerCase();
+    loadWords(0);
+  }, 350);
+}
+
+async function submitAdd() {
+  const word = document.getElementById('newWord').value.trim();
+  if (!word) { toast('请输入敏感词', 'error'); return; }
+  const category = document.getElementById('newCategory').value;
+  const description = document.getElementById('newDesc').value.trim();
+  const res = await fetch('/api/sensitive-words', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({word, category, description}),
+  });
+  if (res.ok) { closeAdd(); toast('添加成功'); loadWords(page); }
+  else { const e = await res.json(); toast('添加失败：'+(e.detail||''), 'error'); }
+}
+
+let editId = null;
+function openEdit(id, word, category, description) {
+  editId = id;
+  document.getElementById('editWord').value = word;
+  document.getElementById('editCategory').value = category || '评标违规';
+  document.getElementById('editDesc').value = description || '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function submitEdit() {
+  const word = document.getElementById('editWord').value.trim();
+  if (!word) { toast('请输入敏感词', 'error'); return; }
+  const category = document.getElementById('editCategory').value;
+  const description = document.getElementById('editDesc').value.trim();
+  
+  const res = await fetch(`/api/sensitive-words/${editId}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({word, category, description}),
+  });
+  if (res.ok) { closeEdit(); toast('修改成功'); loadWords(page); }
+  else { const e = await res.json(); toast('修改失败：'+(e.detail||''), 'error'); }
+}
+
+async function doImport() {
+  const file = document.getElementById('batchFileInput').files[0];
+  if (!file) { toast('请选择文件', 'error'); return; }
+  const text = await file.text();
+  let list = [];
+  if (file.name.endsWith('.json')) { try { list = JSON.parse(text); } catch { toast('JSON 格式错误', 'error'); return; } }
+  else { list = text.split('\n').map(w=>w.trim()).filter(w=>w); }
+  const res = await fetch('/api/sensitive-words/batch', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({words: list}),
+  });
+  const result = document.getElementById('batchResult');
+  if (res.ok) {
+    const d = await res.json();
+    result.textContent = `✅ 成功导入 ${d.imported} 个敏感词`;
+    result.className = 'batch-result ok show';
+    setTimeout(() => { closeImport(); loadWords(0); }, 1500);
+  } else {
+    const e = await res.json();
+    result.textContent = `❌ 导入失败：${e.detail||''}`;
+    result.className = 'batch-result err show';
+  }
+}
+
+let delId = null;
+function askDelete(id, word) {
+  delId = id;
+  document.getElementById('deleteMsg').textContent = `确定删除敏感词「${word}」？删除后相关任务需重新质检。`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+document.getElementById('doDel').addEventListener('click', async () => {
+  if (!delId) return;
+  await fetch(`/api/sensitive-words/${delId}`, {method:'DELETE'});
+  closeDelete(); delId = null; toast('删除成功'); loadWords(page);
+});
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') { closeAdd(); closeImport(); closeDelete(); closeEdit(); } });
+
+loadWords();
+</script>
+</body>
+</html>
