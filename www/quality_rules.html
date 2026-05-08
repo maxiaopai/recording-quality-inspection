@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>质检规则管理 - 录音质检系统</title>
+<link rel="stylesheet" href="/www/shared.css">
+<style>
+  .page-content {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* 质检步骤 */
+  .steps-section {
+    margin-bottom: 24px;
+  }
+  .steps-section h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+  .steps-row {
+    display: flex;
+    gap: 16px;
+  }
+  .step-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-info h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .step-info p {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* 质检规则 */
+  .rules-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .rules-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rules-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .rules-header .count {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .toolbar {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toolbar-search {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toolbar-search input {
+    padding: 7px 11px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    outline: none;
+    background: var(--bg);
+    width: 200px;
+  }
+  .toolbar-search input:focus {
+    border-color: var(--primary-light);
+    background: #fff;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    padding: 9px 14px;
+    background: var(--bg);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-secondary);
+    vertical-align: middle;
+  }
+  .col-num, .col-time {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .col-name strong {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .col-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  tbody tr:hover td { background: var(--surface-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .type-badge.keyword { background: #EEF2FF; color: var(--primary); border: 1px solid #C7D7F5; }
+  .type-badge.context { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+  .type-badge.llm { background: #F3E8FF; color: #7C3AED; border: 1px solid #DDD6FE; }
+
+  .toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    display: inline-block;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #D1D5DB;
+    border-radius: 22px;
+    transition: .2s;
+  }
+  .toggle-slider:before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: .2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+  .toggle-label {
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .action-group { display: flex; gap: 6px; }
+
+  /* 弹窗 */
+  .modal {
+    max-width: 520px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  .modal-close:hover {
+    background: var(--bg);
+    color: var(--text-primary);
+  }
+  .modal .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    outline: none;
+    background: var(--bg);
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: var(--primary-light);
+    background: #fff;
+  }
+  .form-group textarea { min-height: 80px; resize: vertical; }
+  .form-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .confirm-box {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 10px 0 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">‹</button>
+    <div class="sidebar-logo">
+      <div class="logo-icon">🎙️</div>
+      <div class="logo-text">录音质检系统</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a href="/tasks" class="nav-item">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">录音质检管理</span>
+        </a>
+        <a href="/quality-rules" class="nav-item active">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">质检规则管理</span>
+        </a>
+        <a href="/sensitive-words" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">敏感词维护</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-inner">
+        <div class="status-chip">
+          <span class="status-dot"></span>
+          系统运行正常
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">📋 质检规则管理</div>
+      <div class="topbar-spacer"></div>
+    </div>
+
+    <div class="page-content">
+      <!-- 质检规则 -->
+      <div class="rules-section">
+        <div class="rules-header">
+          <h3>质检规则</h3>
+          <span class="count" id="totalCount">共 0 条</span>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn btn-primary" onclick="openAdd()">＋ 新增规则</button>
+          <div class="toolbar-search">
+            <input type="text" id="searchInput" placeholder="请输入规则名称查询" oninput="onSearch()">
+            <button class="btn btn-primary btn-sm" onclick="filterRules()">查询</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearSearch()">重置</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:60px">序号</th>
+                <th style="width:180px">规则名称</th>
+                <th>规则描述</th>
+                <th style="width:120px">判定结果</th>
+                <th style="width:170px">创建时间</th>
+                <th style="width:120px">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="6"><div class="empty-state"><div class="icon">⏳</div><div class="title">加载中…</div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 新增/修改弹窗 -->
+<div class="modal-overlay" id="ruleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">新增规则</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>规则名称 <span class="text-danger">*</span></label>
+        <input type="text" id="ruleName" placeholder="请输入规则名称">
+      </div>
+      <div class="form-group">
+        <label>规则描述</label>
+        <textarea id="ruleDesc" placeholder="请输入规则描述"></textarea>
+      </div>
+      <div class="form-group">
+        <label>判定结果</label>
+        <select id="ruleAction">
+          <option value="qualified">合格</option>
+          <option value="reject">不合格</option>
+          <option value="flag">疑似违规</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitRule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">确认删除</div>
+    <div class="confirm-box" id="deleteMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">取消</button>
+      <button class="btn btn-danger" id="doDel">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleSidebar() { document.getElementById('layout').classList.toggle('collapsed'); }
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function esc(s) { if (!s && s!==0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTime(iso) { if (!iso) return '-'; const d=new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+function typeBadge(type) {
+  const labels = {keyword: '关键词', context: '上下文', llm: 'LLM'};
+  return `<span class="type-badge ${type}">${labels[type] || type}</span>`;
+}
+
+function actionBadge(action) {
+  const labels = {qualified: '合格', reject: '不合格', flag: '疑似违规', ignore: '忽略'};
+  const cls = action === 'reject' ? 'reject' : action === 'flag' ? 'flag' : action === 'ignore' ? 'ignore' : 'ignore';
+  return `<span class="action-badge ${cls}">${labels[action] || action}</span>`;
+}
+
+let editId = null;
+let rules = [];
+let filteredRules = [];
+let search = '';
+
+async function loadRules() {
+  try {
+    const res = await fetch('/api/quality-rules');
+    rules = await res.json();
+    filteredRules = [...rules];
+    renderTable(filteredRules);
+  } catch(e) { console.error(e); }
+}
+
+function onSearch() {
+  clearTimeout(onSearch._t);
+  onSearch._t = setTimeout(() => filterRules(), 350);
+}
+
+function filterRules() {
+  search = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!search) {
+    filteredRules = [...rules];
+  } else {
+    filteredRules = rules.filter(r => r.name.toLowerCase().includes(search));
+  }
+  renderTable(filteredRules);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  search = '';
+  filteredRules = [...rules];
+  renderTable(filteredRules);
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById('tbody');
+  document.getElementById('totalCount').textContent = `共 ${list.length} 条`;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📋</div><div class="title">暂无规则</div><div class="desc">点击"新增规则"添加第一条质检规则</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map((r, i) => `
+    <tr>
+      <td class="col-num">${i+1}</td>
+      <td class="col-name"><strong>${esc(r.name)}</strong></td>
+      <td class="col-desc">${esc(r.description || '-')}</td>
+      <td class="col-action">${actionBadge(r.action)}</td>
+      <td class="col-time">${fmtTime(r.created_at)}</td>
+      <td class="col-ops">
+        <div class="action-group">
+          <button class="btn btn-ghost btn-sm" onclick="openEdit(${r.id})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="askDelete(${r.id},'${esc(r.name)}')">删除</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openAdd() {
+  editId = null;
+  document.getElementById('modalTitle').textContent = '新增规则';
+  document.getElementById('ruleName').value = '';
+  document.getElementById('ruleAction').value = 'reject';
+  document.getElementById('ruleDesc').value = '';
+  document.getElementById('ruleModal').classList.add('open');
+  setTimeout(() => document.getElementById('ruleName').focus(), 80);
+}
+
+async function openEdit(id) {
+  try {
+    const res = await fetch(`/api/quality-rules/${id}`);
+    const rule = await res.json();
+    editId = id;
+    document.getElementById('modalTitle').textContent = '修改规则';
+    document.getElementById('ruleName').value = rule.name;
+    document.getElementById('ruleAction').value = rule.action;
+    document.getElementById('ruleDesc').value = rule.description || '';
+    document.getElementById('ruleModal').classList.add('open');
+  } catch(e) { toast('加载规则失败', 'error'); }
+}
+
+function closeModal() { document.getElementById('ruleModal').classList.remove('open'); }
+
+async function submitRule() {
+  const name = document.getElementById('ruleName').value.trim();
+  if (!name) { toast('请输入规则名称', 'error'); return; }
+
+  const data = {
+    name: name,
+    rule_type: 'keyword',
+    action: document.getElementById('ruleAction').value,
+    description: document.getElementById('ruleDesc').value.trim(),
+    enabled: true,
+  };
+
+  const url = editId ? `/api/quality-rules/${editId}` : '/api/quality-rules';
+  const method = editId ? 'PUT' : 'POST';
+
+  const res = await fetch(url, {
+    method,
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  });
+
+  if (res.ok) {
+    closeModal();
+    toast(editId ? '修改成功' : '添加成功');
+    loadRules();
+  } else {
+    const e = await res.json();
+    toast('操作失败：' + (e.detail || ''), 'error');
+  }
+}
+
+async function toggleRule(id, enabled) {
+  const res = await fetch(`/api/quality-rules/${id}/toggle`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enabled}),
+  });
+  if (res.ok) toast(enabled ? '已启用' : '已禁用');
+  else toast('操作失败', 'error');
+}
+
+let delId = null;
+function askDelete(id, name) {
+  delId = id;
+  document.getElementById('deleteMsg').textContent = `确定删除规则「${name}」？删除后相关质检需重新执行。`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
+document.getElementById('doDel').addEventListener('click', async () => {
+  if (!delId) return;
+  await fetch(`/api/quality-rules/${delId}`, {method: 'DELETE'});
+  closeDelete(); delId = null; toast('删除成功'); loadRules();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeDelete(); }
+});
+
+loadRules();
+</script>
+</body>
+</html>
